@@ -19,6 +19,7 @@ import com.nostra13.universalimageloader.core.assist.FailReason;
 import com.nostra13.universalimageloader.core.assist.ImageLoadingListener;
 import com.nostra13.universalimageloader.core.assist.ImageScaleType;
 import com.nostra13.universalimageloader.core.assist.ImageSize;
+import com.nostra13.universalimageloader.postprocessors.ImagePostProcessor;
 import com.nostra13.universalimageloader.utils.FileUtils;
 
 /**
@@ -43,12 +44,18 @@ final class LoadAndDisplayImageTask implements Runnable {
 	private final ImageLoaderConfiguration configuration;
 	private final ImageLoadingInfo imageLoadingInfo;
 	private final Handler handler;
+    private ImagePostProcessor mPostProcessor;
 
-	public LoadAndDisplayImageTask(ImageLoaderConfiguration configuration, ImageLoadingInfo imageLoadingInfo, Handler handler) {
-		this.configuration = configuration;
-		this.imageLoadingInfo = imageLoadingInfo;
-		this.handler = handler;
-	}
+    public LoadAndDisplayImageTask(ImageLoaderConfiguration configuration, ImageLoadingInfo imageLoadingInfo, Handler handler) {
+        this.configuration = configuration;
+        this.imageLoadingInfo = imageLoadingInfo;
+        this.handler = handler;
+    }
+
+    public LoadAndDisplayImageTask(ImageLoaderConfiguration configuration, ImageLoadingInfo imageLoadingInfo, ImagePostProcessor postProcessor, Handler handler) {
+        this(configuration, imageLoadingInfo, handler);
+        mPostProcessor = postProcessor;
+    }
 
 	@Override
 	public void run() {
@@ -102,6 +109,7 @@ final class LoadAndDisplayImageTask implements Runnable {
 				if (configuration.loggingEnabled) Log.i(ImageLoader.TAG, String.format(LOG_LOAD_IMAGE_FROM_DISC_CACHE, imageLoadingInfo.memoryCacheKey));
 
 				Bitmap b = decodeImage(imageFile.toURI());
+                b = processBitmap(b);
 				if (b != null) {
 					return b;
 				}
@@ -125,7 +133,10 @@ final class LoadAndDisplayImageTask implements Runnable {
 			if (bitmap == null) {
 				fireImageLoadingFailedEvent(FailReason.IO_ERROR);
 			}
-		} catch (IOException e) {
+            else {
+                bitmap = processBitmap(bitmap);
+            }
+        } catch (IOException e) {
 			Log.e(ImageLoader.TAG, e.getMessage(), e);
 			fireImageLoadingFailedEvent(FailReason.IO_ERROR);
 			if (imageFile.exists()) {
@@ -141,7 +152,14 @@ final class LoadAndDisplayImageTask implements Runnable {
 		return bitmap;
 	}
 
-	private Bitmap decodeImage(URI imageUri) throws IOException {
+    private Bitmap processBitmap(Bitmap bitmap) {
+        if (mPostProcessor != null && bitmap != null) {
+            bitmap = mPostProcessor.processBitmap(bitmap);
+        }
+        return bitmap;
+    }
+
+    private Bitmap decodeImage(URI imageUri) throws IOException {
 		Bitmap bmp = null;
 
 		if (configuration.handleOutOfMemory) {
@@ -191,7 +209,7 @@ final class LoadAndDisplayImageTask implements Runnable {
 			ImageDecoder decoder = new ImageDecoder(new URI(imageLoadingInfo.uri), configuration.downloader);
 			Bitmap bmp = decoder.decode(targetImageSize, ImageScaleType.EXACT);
 
-			OutputStream os = new BufferedOutputStream(new FileOutputStream(targetFile));
+            OutputStream os = new BufferedOutputStream(new FileOutputStream(targetFile));
 			boolean compressedSuccessfully = bmp.compress(configuration.imageCompressFormatForDiscCache, configuration.imageQualityForDiscCache, os);
 			if (compressedSuccessfully) {
 				bmp.recycle();

@@ -6,6 +6,7 @@ import android.widget.ImageView;
 import com.nostra13.universalimageloader.core.assist.ImageLoadingListener;
 import com.nostra13.universalimageloader.core.assist.ImageSize;
 import com.nostra13.universalimageloader.core.assist.MemoryCacheKeyUtil;
+import com.nostra13.universalimageloader.postprocessors.ImagePostProcessor;
 
 /**
  * Information for load'n'display image task
@@ -24,12 +25,13 @@ final class ImageLoadingInfo {
 	final DisplayImageOptions options;
 	final ImageLoadingListener listener;
 
-	public ImageLoadingInfo(String uri, ImageView imageView, ImageSize targetSize, DisplayImageOptions options, ImageLoadingListener listener) {
+	public ImageLoadingInfo(String uri, ImageView imageView, ImageSize targetSize, DisplayImageOptions options, ImageLoadingListener listener, ImagePostProcessor postProcessor) {
 		this.uri = Uri.encode(uri, "@#&=*+-_.,:!?()/~'%");
 		this.imageView = imageView;
 		this.targetSize = targetSize;
 		this.options = options;
 		this.listener = listener;
-		memoryCacheKey = MemoryCacheKeyUtil.generateKey(uri, targetSize);
+        String cacheKey = MemoryCacheKeyUtil.generateKey(uri, targetSize);
+        memoryCacheKey = (postProcessor != null) ? postProcessor.addCachePrefix(cacheKey) : cacheKey;
 	}
 }

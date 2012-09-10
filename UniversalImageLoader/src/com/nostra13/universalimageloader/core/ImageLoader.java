@@ -20,6 +20,7 @@ import com.nostra13.universalimageloader.core.assist.ImageLoadingListener;
 import com.nostra13.universalimageloader.core.assist.ImageSize;
 import com.nostra13.universalimageloader.core.assist.MemoryCacheKeyUtil;
 import com.nostra13.universalimageloader.core.assist.SimpleImageLoadingListener;
+import com.nostra13.universalimageloader.postprocessors.ImagePostProcessor;
 
 /**
  * Singletone for image loading and displaying at {@link ImageView ImageViews}<br />
@@ -113,7 +114,7 @@ public class ImageLoader {
 	 *             if {@link #init(ImageLoaderConfiguration)} method wasn't called before
 	 */
 	public void displayImage(String uri, ImageView imageView, DisplayImageOptions options) {
-		displayImage(uri, imageView, options, null);
+		displayImage(uri, imageView, options, null, null);
 	}
 
 	/**
@@ -135,8 +136,12 @@ public class ImageLoader {
 	 *             if {@link #init(ImageLoaderConfiguration)} method wasn't called before
 	 */
 	public void displayImage(String uri, ImageView imageView, ImageLoadingListener listener) {
-		displayImage(uri, imageView, null, listener);
+		displayImage(uri, imageView, null, listener, null);
 	}
+
+    public void displayImage(String uri, ImageView imageView, DisplayImageOptions options, ImageLoadingListener listener) {
+        displayImage(uri, imageView, options, listener, null);
+    }
 
 	/**
 	 * Adds display image task to execution pool. Image will be set to ImageView when it's turn.<br />
@@ -159,7 +164,7 @@ public class ImageLoader {
 	 * @throws RuntimeException
 	 *             if {@link #init(ImageLoaderConfiguration)} method wasn't called before
 	 */
-	public void displayImage(String uri, ImageView imageView, DisplayImageOptions options, ImageLoadingListener listener) {
+	public void displayImage(String uri, ImageView imageView, DisplayImageOptions options, ImageLoadingListener listener, ImagePostProcessor postProcessor) {
 		if (configuration == null) {
 			throw new RuntimeException(ERROR_NOT_INIT);
 		}
@@ -187,8 +192,14 @@ public class ImageLoader {
 		}
 
 		ImageSize targetSize = getImageSizeScaleTo(imageView);
-		String memoryCacheKey = MemoryCacheKeyUtil.generateKey(uri, targetSize);
-		cacheKeyForImageView.put(imageView, memoryCacheKey);
+
+        String memoryCacheKey = MemoryCacheKeyUtil.generateKey(uri, targetSize);
+
+        if (postProcessor != null) {
+            memoryCacheKey = postProcessor.addCachePrefix(memoryCacheKey);
+        }
+
+        cacheKeyForImageView.put(imageView, memoryCacheKey);
 
 		Bitmap bmp = configuration.memoryCache.get(memoryCacheKey);
 		if (bmp != null && !bmp.isRecycled()) {
@@ -208,8 +219,14 @@ public class ImageLoader {
 			}
 
 			checkExecutors();
-			ImageLoadingInfo imageLoadingInfo = new ImageLoadingInfo(uri, imageView, targetSize, options, listener);
-			LoadAndDisplayImageTask displayImageTask = new LoadAndDisplayImageTask(configuration, imageLoadingInfo, new Handler());
+			ImageLoadingInfo imageLoadingInfo = new ImageLoadingInfo(uri, imageView, targetSize, options, listener, postProcessor);
+            LoadAndDisplayImageTask displayImageTask;
+            if (postProcessor != null) {
+                displayImageTask = new LoadAndDisplayImageTask(configuration, imageLoadingInfo, postProcessor, new Handler());
+            }
+            else {
+                displayImageTask = new LoadAndDisplayImageTask(configuration, imageLoadingInfo, new Handler());
+            }
 			boolean isImageCachedOnDisc = configuration.discCache.get(uri).exists();
 			if (isImageCachedOnDisc) {
 				cachedImageLoadingExecutor.submit(displayImageTask);
